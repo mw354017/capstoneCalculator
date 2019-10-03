@@ -4,19 +4,18 @@
 //
 //*******************************************************************
 
-
-
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
+double nothing = 3.4028235*pow(10,38);
+
 LiquidCrystal_I2C lcd(0x27,20,4);                         // Set the LCD address to 0x27 for a 16 chars and 2 line display
 
-char getKey();                                            // Returns the input from the keypad
-double parseInput(char totalInput[32]);                   // Makes the input numbers and ops, and calls orderOfOps
-double charsToDouble(char numbers1[]);                    // Converts our array of characters into a double
-double orderOfOps(double numbers[32], char ops[31]);      // Calls calculate on numbers and ops in the correct order
-double calculate(double left, char op, double right);     // Returns an answer for an operation preformed on 2 numbers
-void errorHandler(char code[]);                           // Prints the Error code and preforms a reset
+char getKey();                                                            // Returns the input from the keypad
+double parseInput(char totalInput[32]);                                   // Makes the input numbers and ops, and calls orderOfOps
+double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps);     // Calls calculate on numbers and ops in the correct order
+double calculate(double left, char op, double right);                     // Returns an answer for an operation preformed on 2 numbers
+void errorHandler(char code[]);                                           // Prints the Error code and performs a reset
 
 bool reset=1; // If true, then we must reset the calculator, clearing all values
 
@@ -137,31 +136,31 @@ void loop() {
         lcd.write(0);
       } else {
         lcd.print(input);
-        if(input == '=') {
-          Serial.println("The totalInput array passed to parseInput is:");
-          Serial.println(totalInput);
-          answer = parseInput(totalInput);
-          Serial.println('\n');
-          if(reset == 0) {
-            lcd.clear();
-            lcd.print("= ");
-            lcd.print(answer);
-            while(getKey() == NULL) {}
-            reset = 1;
-          }
-        } else { // Just store the character
-          totalInput[i]=input;
-          i++;
-        } 
-        delay(200); // Limit accidental double presses
       }
+      if(input == '=') {
+        Serial.println("The totalInput array passed to parseInput is:");
+        Serial.println(totalInput);
+        answer = parseInput(totalInput);
+        Serial.println('\n');
+        if(reset == 0) {
+          lcd.clear();
+          lcd.print("= ");
+          lcd.print(answer);
+          while(getKey() == NULL) {}
+          reset = 1;
+        }
+      } else { // Just store the character
+        totalInput[i]=input;
+        i++;
+      } 
+      delay(200); // Limit accidental double presses
     }
   }
 }
 
 double parseInput(char totalInput[32]) 
 {
-  double numbers2[32] = {NULL};
+  double numbers2[32] = {nothing};
   char numbers1[32] = {NULL};
   char ops[31] = {NULL};
   int k=0;
@@ -178,6 +177,10 @@ double parseInput(char totalInput[32])
     } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
         k=0;
         numbers2[l] = atof(numbers1);
+        if(isNegative) {
+          numbers2[l] = -1*numbers2[l];
+          isNegative = 0;
+        }
         for(int z=0; z <32; z++) {
           numbers1[z] = {NULL};
         }
@@ -193,20 +196,25 @@ double parseInput(char totalInput[32])
           Serial.println(numbers1);
           //numbers2[l] = charsToDouble(numbers1);
           numbers2[l] = atof(numbers1);
+          if(isNegative) {
+          numbers2[l] = -1*numbers2[l];
+          }
           Serial.println("The numbers2 and ops arrays passed to orderOfOps is:");
           for(int n=0; n<=l; n++) {
             Serial.println(numbers2[n]);
           }
+          l++; 
+          m++;
           Serial.println(ops);
-          return orderOfOps(numbers2, ops);
+          return orderOfOps(numbers2, ops, l, m);
         }
       }
   }
 
-double orderOfOps(double numbers[32], char ops[31])
+double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps)
 {
-  int sizeNumbers=0;
-  int sizeOps=0;
+  //int sizeNumbers=0;
+  //int sizeOps=0;
   int leftNum=0;
   int rightNum=0;
   //int numParens=0;  Parenthesis have been left out for now
@@ -214,16 +222,16 @@ double orderOfOps(double numbers[32], char ops[31])
   //int rightParens=NULL;
 
   
-  while(numbers[sizeNumbers] != NULL) {
-    sizeNumbers++;
-  }
-  while(ops[sizeOps] != NULL) {
-    sizeOps++;
-  }
+  //while(numbers[sizeNumbers] != NULL) { // This is where zero breaks because zero as a double = NULL
+  //  sizeNumbers++;
+  //}
+  //while(ops[sizeOps] != NULL) {
+  //  sizeOps++;
+  //}
   // doesn't work with parenthesis
-  if(sizeOps != (sizeNumbers-1)){
-    errorHandler("Syntax ERROR 2");
-  } else {
+  //if(sizeOps != (sizeNumbers-1)){
+  //  errorHandler("Syntax ERROR 2");
+  //} else {
   //sort out parenthesis, call recursively
   /*
   for(int i=0; i <= sizeOps; i++){
@@ -243,14 +251,14 @@ double orderOfOps(double numbers[32], char ops[31])
       if(ops[i] == '^'){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == NULL) {
+        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
           leftNum--;
         }
-        while(numbers[rightNum] == NULL) {
+        while(numbers[rightNum] == nothing) {
           rightNum++;
         }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = NULL;
+        numbers[rightNum] = nothing;
         ops[i] = NULL;
       }
     }
@@ -258,14 +266,14 @@ double orderOfOps(double numbers[32], char ops[31])
       if(ops[i] == '*' || ops[i] == '/'){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == NULL) {
+        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
           leftNum--;
         }
-        while(numbers[rightNum] == NULL) {
+        while(numbers[rightNum] == nothing) {
           rightNum++;
         }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = NULL;
+        numbers[rightNum] = nothing;
         ops[i] = NULL;
       }
     }
@@ -285,7 +293,7 @@ double orderOfOps(double numbers[32], char ops[31])
       }
     }
     return numbers[0];
-  }
+  //}
 }
 
 double calculate(double left, char op, double right)
@@ -354,10 +362,10 @@ char getKey()
   return NULL; // Default the input to NULL
 }
 
-void errorHandler(char code[])
+void errorHandler(char errorCode[])
 {
   lcd.clear();
-  lcd.print(code);
+  lcd.print(errorCode);
   reset = 1;
   delay(200);
   while(getKey() == NULL){}

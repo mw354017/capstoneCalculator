@@ -8,6 +8,7 @@
 #include <LiquidCrystal_I2C.h>
 
 double nothing = 3.4028235*pow(10,38);
+bool isReal = 1;                                          //This flag will be be changed to 0 if resultant is calculated to exist in the imaginary plane
 
 LiquidCrystal_I2C lcd(0x27,20,4);                         // Set the LCD address to 0x27 for a 16 chars and 2 line display
 
@@ -78,6 +79,7 @@ void loop() {
   int i= 0 ;
   reset = 0;
   int cursorLocation = 0;
+  isReal = 1;
   lcd.clear();
   lcd.blink();
   char input=NULL;
@@ -100,7 +102,7 @@ void loop() {
         } else {
           lcd.setCursor(cursorLocation-15,1);
         }
-        totalInput[i] = NULL; // Remove the relavent input
+        totalInput[i-1] = NULL; // Remove the relavent input
         i--;
       }
     } else if(input == '<') { // Move cursor backward THIS DOES NOT WORK WITH BACKSPACE
@@ -146,6 +148,9 @@ void loop() {
           lcd.clear();
           lcd.print("= ");
           lcd.print(answer);
+          if(isReal == 0) {
+            lcd.print('j');
+          }
           while(getKey() == NULL) {}
           reset = 1;
         }
@@ -170,6 +175,9 @@ double parseInput(char totalInput[32])
   for(int i=0; i<=31; i++){
     if(totalInput[i] == '-') {
       isNegative = 1;
+      if(k!=0) {
+        errorHandler("Syntax ERROR");
+      }
     } else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.' ) { // if it's a number or '.'
         numbers1[k] = totalInput[i];
         k++;
@@ -321,6 +329,11 @@ double calculate(double left, char op, double right)
     Serial.println(right);
     Serial.println(left);
     resultant = pow(left,right);
+    if(resultant != resultant) {
+      left = -1*left;               //flips the polarity of left so the calculation can occur
+      isReal = 0;                   //The original resultant was nonreal
+      resultant = pow(left,right);
+    }
       /*if(left < 0 && (right < 1 && right > -1)) {
         resultant = pow(left,right);
       } else {

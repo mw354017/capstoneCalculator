@@ -1,3 +1,11 @@
+//*******************************************************************
+//        Negative Numbers are in the process of being implemented (Noah)
+//
+//
+//*******************************************************************
+
+
+
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
@@ -50,6 +58,19 @@ void setup() {
   lcd.print(".");
   delay(500);
   lcd.clear();
+
+  byte negativeChar[] = {
+    B00000,
+    B00000,
+    B00000,
+    B01110,
+    B00000,
+    B00000,
+    B00000,
+    B00000,
+  };
+  lcd.createChar(0, negativeChar);
+  
 }
 
 void loop() {
@@ -110,24 +131,30 @@ void loop() {
       if(cursorLocation == 16) {
         lcd.setCursor(0,1); //second row
       }
-      lcd.print(input);
-      if(input == '=') {
-        Serial.println("The totalInput array passed to parseInput is:");
-        Serial.println(totalInput);
-        answer = parseInput(totalInput);
-        Serial.println('\n');
-        if(reset == 0) {
-          lcd.clear();
-          lcd.print("= ");
-          lcd.print(answer);
-          while(getKey() == NULL) {}
-          reset = 1;
-        }
-      } else { // Just store the character
-        totalInput[i]=input;
-        i++;
-      } 
-      delay(200); // Limit accidental double presses
+      if(input == '_') {
+        lcd.print('-');                  
+      } else if(input == '-') {
+        lcd.write(0);
+      } else {
+        lcd.print(input);
+        if(input == '=') {
+          Serial.println("The totalInput array passed to parseInput is:");
+          Serial.println(totalInput);
+          answer = parseInput(totalInput);
+          Serial.println('\n');
+          if(reset == 0) {
+            lcd.clear();
+            lcd.print("= ");
+            lcd.print(answer);
+            while(getKey() == NULL) {}
+            reset = 1;
+          }
+        } else { // Just store the character
+          totalInput[i]=input;
+          i++;
+        } 
+        delay(200); // Limit accidental double presses
+      }
     }
   }
 }
@@ -140,12 +167,15 @@ double parseInput(char totalInput[32])
   int k=0;
   int l=0;
   int m=0;
+  bool isNegative = 0;
   for(int i=0; i<=31; i++){
-    if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput == '.') { // if it's a number or '.'
+    if(totalInput[i] == '-') {
+      isNegative = 1;
+    } else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.' ) { // if it's a number or '.'
         numbers1[k] = totalInput[i];
         k++;
         Serial.println("part of a number");
-      } else if(totalInput[i] == '+' ||  totalInput[i] == '-' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
+    } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
         k=0;
         numbers2[l] = atof(numbers1);
         for(int z=0; z <32; z++) {
@@ -154,7 +184,7 @@ double parseInput(char totalInput[32])
         l++;
         ops[m] = totalInput[i];
         m++;
-        if(totalInput[i-1] == '+' ||  totalInput[i-1] == '-' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i] == '^'){
+        if(totalInput[i-1] == '+' ||  totalInput[i-1] == '_' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i-1] == '^'){
           errorHandler("Syntax ERROR 1");
         }
         } else if(totalInput[i] == NULL) {
@@ -240,7 +270,7 @@ double orderOfOps(double numbers[32], char ops[31])
       }
     }
     for(int i=0; i < sizeOps; i++){
-      if(ops[i] == '+' || ops[i] == '-'){
+      if(ops[i] == '+' || ops[i] == '_'){
         int leftNum = i;
         int rightNum = i+1;
         while(numbers[leftNum] == NULL) {
@@ -265,7 +295,7 @@ double calculate(double left, char op, double right)
     case '+':
       resultant = left+right;
       break;
-    case '-':
+    case '_':
       resultant = left-right;
       break;
     case '*':
@@ -282,26 +312,29 @@ double calculate(double left, char op, double right)
     Serial.println("Power operation has recieved the following numbers:");
     Serial.println(right);
     Serial.println(left);
-
-      if(left < 0 && (right < 1 && right > -1)) {
+    resultant = pow(left,right);
+      /*if(left < 0 && (right < 1 && right > -1)) {
         resultant = pow(left,right);
       } else {
         errorHandler("Not Real Answer");
-      }
+      }*/
       break;
+ 
    }
+
    return resultant;
 }
 
 char getKey()
 {
-  char key[16]={'1','2','3','+','4','5','6','-','7','8','9','*','X','0','=','/'};
+  char key[16]={'1','2','3','+','4','5','6','_','7','8','9','*','X','0','=','/'};
   if(!digitalRead(4)) // Check if using shift
   {
     key[0]='(';
     key[1]=')';
     key[4]='<';
     key[5]='>';
+    key[7]='-';
     key[11]='^';
     key[12]='x';
     key[14]='A';

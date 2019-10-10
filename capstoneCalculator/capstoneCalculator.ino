@@ -266,6 +266,7 @@ operand orderOfOps(operand numbers[32], char ops[31], int sizeNumbers, int sizeO
   for(int i=0; i < sizeNumbers; i++){
     if (numbers[i].parenthesesDepth > parenthesesLevel) {
       trash = orderOfOps(numbers, ops, sizeNumbers, sizeOps, parenthesesLevel+1);
+      i=sizeNumbers;
     }
   }
   
@@ -281,7 +282,9 @@ operand orderOfOps(operand numbers[32], char ops[31], int sizeNumbers, int sizeO
         }
         if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
           numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i], numbers[rightNum].realComponent);
-          numbers[leftNum].parenthesesDepth--;
+          if(numbers[leftNum].parenthesesDepth > 0) {
+            numbers[leftNum].parenthesesDepth--;
+          }
           numbers[rightNum].realComponent = nothing;
           ops[i] = NULL;
         }
@@ -299,7 +302,9 @@ operand orderOfOps(operand numbers[32], char ops[31], int sizeNumbers, int sizeO
         }
         if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
           numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i], numbers[rightNum].realComponent);
-          numbers[leftNum].parenthesesDepth--;
+          if(numbers[leftNum].parenthesesDepth > 0) {
+            numbers[leftNum].parenthesesDepth--;
+          }
           numbers[rightNum].realComponent = nothing;
           ops[i] = NULL;
         }
@@ -317,7 +322,9 @@ operand orderOfOps(operand numbers[32], char ops[31], int sizeNumbers, int sizeO
         }
         if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
           numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i], numbers[rightNum].realComponent);
-          numbers[leftNum].parenthesesDepth--;
+          if(numbers[leftNum].parenthesesDepth > 0) {
+            numbers[leftNum].parenthesesDepth--;
+          }
           numbers[rightNum].realComponent = nothing;
           ops[i] = NULL;
         }

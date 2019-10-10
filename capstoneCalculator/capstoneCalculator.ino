@@ -1,14 +1,22 @@
+//*******************************************************************
+//        Negative Numbers are in the process of being implemented (Noah)
+//
+//
+//*******************************************************************
+
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
+double nothing = 3.4028235*pow(10,38);
+bool isReal = 1;                                          //This flag will be be changed to 0 if resultant is calculated to exist in the imaginary plane
+
 LiquidCrystal_I2C lcd(0x27,20,4);                         // Set the LCD address to 0x27 for a 16 chars and 2 line display
 
-char getKey();                                            // Returns the input from the keypad
-double parseInput(char totalInput[32]);                   // Makes the input numbers and ops, and calls orderOfOps
-double charsToDouble(char numbers1[]);                    // Converts our array of characters into a double
-double orderOfOps(double numbers[32], char ops[31]);      // Calls calculate on numbers and ops in the correct order
-double calculate(double left, char op, double right);     // Returns an answer for an operation preformed on 2 numbers
-void errorHandler(char code[]);                           // Prints the Error code and preforms a reset
+char getKey();                                                            // Returns the input from the keypad
+double parseInput(char totalInput[32]);                                   // Makes the input numbers and ops, and calls orderOfOps
+double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps);     // Calls calculate on numbers and ops in the correct order
+double calculate(double left, char op, double right);                     // Returns an answer for an operation preformed on 2 numbers
+void errorHandler(char code[]);                                           // Prints the Error code and performs a reset
 
 bool reset=1; // If true, then we must reset the calculator, clearing all values
 
@@ -50,6 +58,19 @@ void setup() {
   lcd.print(".");
   delay(500);
   lcd.clear();
+
+  byte negativeChar[] = {
+    B00000,
+    B00000,
+    B00000,
+    B01110,
+    B00000,
+    B00000,
+    B00000,
+    B00000,
+  };
+  lcd.createChar(0, negativeChar);
+  
 }
 
 void loop() {
@@ -58,6 +79,7 @@ void loop() {
   int i= 0 ;
   reset = 0;
   int cursorLocation = 0;
+  isReal = 1;
   lcd.clear();
   lcd.blink();
   char input=NULL;
@@ -80,7 +102,7 @@ void loop() {
         } else {
           lcd.setCursor(cursorLocation-15,1);
         }
-        totalInput[i] = NULL; // Remove the relavent input
+        totalInput[i-1] = NULL; // Remove the relavent input
         i--;
       }
     } else if(input == '<') { // Move cursor backward THIS DOES NOT WORK WITH BACKSPACE
@@ -110,7 +132,13 @@ void loop() {
       if(cursorLocation == 16) {
         lcd.setCursor(0,1); //second row
       }
-      lcd.print(input);
+      if(input == '_') {
+        lcd.print('-');                  
+      } else if(input == '-') {
+        lcd.write(0);
+      } else {
+        lcd.print(input);
+      }
       if(input == '=') {
         Serial.println("The totalInput array passed to parseInput is:");
         Serial.println(totalInput);
@@ -120,6 +148,9 @@ void loop() {
           lcd.clear();
           lcd.print("= ");
           lcd.print(answer);
+          if(isReal == 0) {
+            lcd.print('j');
+          }
           while(getKey() == NULL) {}
           reset = 1;
         }
@@ -134,27 +165,37 @@ void loop() {
 
 double parseInput(char totalInput[32]) 
 {
-  double numbers2[32] = {NULL};
+  double numbers2[32] = {nothing};
   char numbers1[32] = {NULL};
   char ops[31] = {NULL};
   int k=0;
   int l=0;
   int m=0;
+  bool isNegative = 0;
   for(int i=0; i<=31; i++){
-    if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput == '.') { // if it's a number or '.'
+    if(totalInput[i] == '-') {
+      isNegative = 1;
+      if(k!=0) {
+        errorHandler("Syntax ERROR");
+      }
+    } else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.' ) { // if it's a number or '.'
         numbers1[k] = totalInput[i];
         k++;
         Serial.println("part of a number");
-      } else if(totalInput[i] == '+' ||  totalInput[i] == '-' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
+    } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
         k=0;
         numbers2[l] = atof(numbers1);
+        if(isNegative) {
+          numbers2[l] = -1*numbers2[l];
+          isNegative = 0;
+        }
         for(int z=0; z <32; z++) {
           numbers1[z] = {NULL};
         }
         l++;
         ops[m] = totalInput[i];
         m++;
-        if(totalInput[i-1] == '+' ||  totalInput[i-1] == '-' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i] == '^'){
+        if(totalInput[i-1] == '+' ||  totalInput[i-1] == '_' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i-1] == '^'){
           errorHandler("Syntax ERROR 1");
         }
         } else if(totalInput[i] == NULL) {
@@ -163,20 +204,25 @@ double parseInput(char totalInput[32])
           Serial.println(numbers1);
           //numbers2[l] = charsToDouble(numbers1);
           numbers2[l] = atof(numbers1);
+          if(isNegative) {
+          numbers2[l] = -1*numbers2[l];
+          }
           Serial.println("The numbers2 and ops arrays passed to orderOfOps is:");
           for(int n=0; n<=l; n++) {
             Serial.println(numbers2[n]);
           }
+          l++; 
+          m++;
           Serial.println(ops);
-          return orderOfOps(numbers2, ops);
+          return orderOfOps(numbers2, ops, l, m);
         }
       }
   }
 
-double orderOfOps(double numbers[32], char ops[31])
+double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps)
 {
-  int sizeNumbers=0;
-  int sizeOps=0;
+  //int sizeNumbers=0;
+  //int sizeOps=0;
   int leftNum=0;
   int rightNum=0;
   //int numParens=0;  Parenthesis have been left out for now
@@ -184,16 +230,16 @@ double orderOfOps(double numbers[32], char ops[31])
   //int rightParens=NULL;
 
   
-  while(numbers[sizeNumbers] != NULL) {
-    sizeNumbers++;
-  }
-  while(ops[sizeOps] != NULL) {
-    sizeOps++;
-  }
+  //while(numbers[sizeNumbers] != NULL) { // This is where zero breaks because zero as a double = NULL
+  //  sizeNumbers++;
+  //}
+  //while(ops[sizeOps] != NULL) {
+  //  sizeOps++;
+  //}
   // doesn't work with parenthesis
-  if(sizeOps != (sizeNumbers-1)){
-    errorHandler("Syntax ERROR 2");
-  } else {
+  //if(sizeOps != (sizeNumbers-1)){
+  //  errorHandler("Syntax ERROR 2");
+  //} else {
   //sort out parenthesis, call recursively
   /*
   for(int i=0; i <= sizeOps; i++){
@@ -213,14 +259,14 @@ double orderOfOps(double numbers[32], char ops[31])
       if(ops[i] == '^'){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == NULL) {
+        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
           leftNum--;
         }
-        while(numbers[rightNum] == NULL) {
+        while(numbers[rightNum] == nothing) {
           rightNum++;
         }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = NULL;
+        numbers[rightNum] = nothing;
         ops[i] = NULL;
       }
     }
@@ -228,19 +274,19 @@ double orderOfOps(double numbers[32], char ops[31])
       if(ops[i] == '*' || ops[i] == '/'){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == NULL) {
+        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
           leftNum--;
         }
-        while(numbers[rightNum] == NULL) {
+        while(numbers[rightNum] == nothing) {
           rightNum++;
         }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = NULL;
+        numbers[rightNum] = nothing;
         ops[i] = NULL;
       }
     }
     for(int i=0; i < sizeOps; i++){
-      if(ops[i] == '+' || ops[i] == '-'){
+      if(ops[i] == '+' || ops[i] == '_'){
         int leftNum = i;
         int rightNum = i+1;
         while(numbers[leftNum] == NULL) {
@@ -255,7 +301,7 @@ double orderOfOps(double numbers[32], char ops[31])
       }
     }
     return numbers[0];
-  }
+  //}
 }
 
 double calculate(double left, char op, double right)
@@ -265,7 +311,7 @@ double calculate(double left, char op, double right)
     case '+':
       resultant = left+right;
       break;
-    case '-':
+    case '_':
       resultant = left-right;
       break;
     case '*':
@@ -282,26 +328,34 @@ double calculate(double left, char op, double right)
     Serial.println("Power operation has recieved the following numbers:");
     Serial.println(right);
     Serial.println(left);
-
-      if(left < 0 && (right < 1 && right > -1)) {
+    resultant = pow(left,right);
+    if(resultant != resultant) {
+      left = -1*left;               //flips the polarity of left so the calculation can occur
+      isReal = 0;                   //The original resultant was nonreal
+      resultant = pow(left,right);
+    }
+      /*if(left < 0 && (right < 1 && right > -1)) {
         resultant = pow(left,right);
       } else {
         errorHandler("Not Real Answer");
-      }
+      }*/
       break;
+ 
    }
+
    return resultant;
 }
 
 char getKey()
 {
-  char key[16]={'1','2','3','+','4','5','6','-','7','8','9','*','X','0','=','/'};
+  char key[16]={'1','2','3','+','4','5','6','_','7','8','9','*','X','0','=','/'};
   if(!digitalRead(4)) // Check if using shift
   {
     key[0]='(';
     key[1]=')';
     key[4]='<';
     key[5]='>';
+    key[7]='-';
     key[11]='^';
     key[12]='x';
     key[14]='A';
@@ -321,10 +375,10 @@ char getKey()
   return NULL; // Default the input to NULL
 }
 
-void errorHandler(char code[])
+void errorHandler(char errorCode[])
 {
   lcd.clear();
-  lcd.print(code);
+  lcd.print(errorCode);
   reset = 1;
   delay(200);
   while(getKey() == NULL){}

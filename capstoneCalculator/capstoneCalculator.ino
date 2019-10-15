@@ -1,14 +1,13 @@
 //*******************************************************************
-//        Negative Numbers are in the process of being implemented (Noah)
-//
+//  Capstone Calculator
+//  By: Matthew Wagner, Noah Blain, Donovan Booker, Brandon Garner
 //
 //*******************************************************************
 
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 
-double nothing = 3.4028235*pow(10,38);
-bool isReal = 1;                                          //This flag will be be changed to 0 if resultant is calculated to exist in the imaginary plane
+double nothing = 3.4028235*pow(10,38);                    // This value has been set to indicate that nothing is stored in the operand
 
 LiquidCrystal_I2C lcd(0x27,20,4);                         // Set the LCD address to 0x27 for a 16 chars and 2 line display
 
@@ -27,7 +26,7 @@ struct operation {
 char getKey();                                                            // Returns the input from the keypad
 operand parseInput(char totalInput[32]);                                   // Makes the input numbers and ops, and calls orderOfOps
 operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int sizeOps, int parenthesesLevel);     // Calls calculate on numbers and ops in the correct order
-double calculate(double left, char op, double right);                     // Returns an answer for an operation preformed on 2 numbers
+operand calculate(operand left, char op, operand right);                     // Returns an answer for an operation preformed on 2 numbers
 void errorHandler(char code[]);                                           // Prints the Error code and performs a reset
 
 
@@ -88,21 +87,21 @@ void setup() {
 }
 
 void loop() {
-  double answer; // Preform a reset
+  // Preform a reset
+  operand answer;
   char totalInput[32] = {NULL};
   int i= 0 ;
   reset = 0;
   int cursorLocation = 0;
-  isReal = 1;
   lcd.clear();
   lcd.blink();
   char input=NULL;
-  while(reset == 0) {  
+  while(reset == 0) { // Get new input and act accordingly
     input = getKey(); 
-    if(input == NULL) {}
+    if(input == NULL) {} // Do nothing
     else if(input=='X') { // 'X' clears the screen
       reset = 1;
-    } else if(input=='x') { // 'x' is backspace THIS DOES NOT WORK WITH '<'
+    } else if(input=='x') { // 'x' is backspace
       if(cursorLocation != 0) { // Don't backspace if there is nothing there
         cursorLocation--;
         if(cursorLocation < 16) { // Move the cursor back, and wrap around the screen
@@ -119,7 +118,7 @@ void loop() {
         totalInput[i-1] = NULL; // Remove the relavent input
         i--;
       }
-    } else if(input == '<') { // Move cursor backward THIS DOES NOT WORK WITH BACKSPACE
+    } else if(input == '<') { // Move cursor backward
       if(cursorLocation != 0) {
         cursorLocation--;
         i--;
@@ -139,7 +138,7 @@ void loop() {
           lcd.setCursor(cursorLocation-15,1);
         }
       }
-    } else if(input == 'A') { // The previous answer
+    } else if(input == 'A') { // The previous answer NOT YET IMPLEMENTED
       //itoa
     } else { // The character needs printed
       cursorLocation++;
@@ -153,17 +152,22 @@ void loop() {
       } else {
         lcd.print(input);
       }
-      if(input == '=') {
-        Serial.println("The totalInput array passed to parseInput is:");
-        Serial.println(totalInput);
-        answer = parseInput(totalInput).realComponent;
-        Serial.println('\n');
+      if(input == '=') { // Calculate and print the answer
+        answer = parseInput(totalInput);
         if(reset == 0) {
           lcd.clear();
           lcd.print("= ");
-          lcd.print(answer);
-          if(isReal == 0) {
-            lcd.print('j');
+          if(answer.realComponent != 0) {
+            lcd.print(answer.realComponent);
+            if(answer.imaginaryComponent != 0) {
+              lcd.print(" + ");
+            }
+          }
+          if(answer.imaginaryComponent != 0) {
+            lcd.print("j");
+            lcd.print(answer.imaginaryComponent);
+          } else if(answer.imaginaryComponent == 0 && answer.realComponent != 0) {
+            lcd.print("0");
           }
           while(getKey() == NULL) {}
           reset = 1;
@@ -179,17 +183,17 @@ void loop() {
 
 operand parseInput(char totalInput[32]) 
 {
-  operand numbers2[32];
-  char numbers1[32] = {NULL};
-  operation ops[31];
-  int k=0;
-  int l=0;
-  int m=0;
+  char numbers1[32] = {NULL};   // Fills up with characters to be converted to a double and stored in numbers2
+  operand numbers2[32];         // Stores all the doubles with parenthesesDepth
+  operation ops[31];            // Stores all our operation characters with parenthesesDepth
+  int k=0;                      // Cursor for numbers1
+  int l=0;                      // Cursor for numbers2
+  int m=0;                      // Cursor for ops
   bool isNegative = 0;
   bool isReal = 1;
   double tempNumber = 0;
   int parenthesesLevel = 0;
-  for(int i=0; i<=31; i++){
+  for(int i=0; i<=31; i++) {
     if(totalInput[i] == '-') {
       isNegative = 1;
       if(k!=0) {
@@ -207,12 +211,10 @@ operand parseInput(char totalInput[32])
       if (parenthesesLevel < 0){
         errorHandler("Syntax ERROR");
       }
-    }  else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.') { // if it's a number or '.'
-    
+    } else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.') { // If it's a number or '.'
         numbers1[k] = totalInput[i];
         k++;
-        Serial.println("part of a number");
-    } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
+    } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') { // If it's an operation
       k=0;
       tempNumber = atof(numbers1);
       if (isNegative){
@@ -224,11 +226,11 @@ operand parseInput(char totalInput[32])
         numbers2[l].imaginaryComponent = tempNumber;
       }
       numbers2[l].parenthesesDepth = parenthesesLevel;
-      for(int z=0; z <32; z++) {
-        numbers1[z] = {NULL};
+      for(int i=0; i<32; i++) {     // Clear numbers1
+        numbers1[i] = {NULL};
       }
       l++;
-      ops[m].op = totalInput[i];
+      ops[m].op = totalInput[i];    // Store the operation
       ops[m].parenthesesDepth = parenthesesLevel;
       m++;
       if(totalInput[i-1] == '+' ||  totalInput[i-1] == '_' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i-1] == '^'){
@@ -257,83 +259,71 @@ operand parseInput(char totalInput[32])
         }
         l++; 
         m++;
-        //Serial.println(ops.op);
-        return orderOfOps(numbers2, ops, l, m, 0);
+        return orderOfOps(numbers2, ops, l, m, 0); // Calculate and return the answer
       }
     }
   }
 
 operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int sizeOps, int parenthesesLevel)
 {
-
   int leftNum=0;
   int rightNum=0;
-  operand trash;
-  Serial.println("Order of ops called with:");
-  for(int i=0; i < sizeNumbers; i++){
-    Serial.print(numbers[i].realComponent);
-    Serial.println(numbers[i].parenthesesDepth);
-  }
-  for(int i=0; i < sizeNumbers; i++){
+  operand trash;    // The return value of orderOfOps is not important until the final answer has been reached
+  for(int i=0; i < sizeNumbers; i++){     // If there is a greater parenthesesDepth than our current level, call orderOfOps with the next level
     if (numbers[i].parenthesesDepth > parenthesesLevel) {
       trash = orderOfOps(numbers, ops, sizeNumbers, sizeOps, parenthesesLevel+1);
       i=sizeNumbers;
     }
   }
-  
-    for(int i=0; i < sizeOps; i++){
-      if(ops[i].op == '^' && ops[i].parenthesesDepth == parenthesesLevel){
-        int leftNum = i;
-        int rightNum = i+1;
-        while(numbers[leftNum].realComponent == nothing) {
-          leftNum--;
-        }
-        while(numbers[rightNum].realComponent == nothing) {
-          rightNum++;
-        }
-        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
-          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
-          numbers[rightNum].realComponent = nothing;
-          ops[i].op = NULL;
-        //}
+  for(int i=0; i < sizeOps; i++){
+    if(ops[i].op == '^' && ops[i].parenthesesDepth == parenthesesLevel) {
+      int leftNum = i;
+      int rightNum = i+1;
+      while(numbers[leftNum].realComponent == nothing && numbers[leftNum].imaginaryComponent == nothing) {
+        leftNum--;
       }
+      while(numbers[rightNum].realComponent == nothing && numbers[rightNum].imaginaryComponent == nothing) {
+        rightNum++;
+      }
+      //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
+        numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
+        numbers[rightNum].realComponent = nothing;
+        ops[i].op = NULL;
+      //}
     }
-    for(int i=0; i < sizeOps; i++){
-      if((ops[i].op == '*' || ops[i].op == '/') && ops[i].parenthesesDepth == parenthesesLevel){
-        int leftNum = i;
-        int rightNum = i+1;
-        while(numbers[leftNum].realComponent == nothing) { // This is where zero breaks because zero as a double = NULL
-          leftNum--;
-        }
-        while(numbers[rightNum].realComponent == nothing) {
-          rightNum++;
-        }
-        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
-          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
-          numbers[rightNum].realComponent = nothing;
-          ops[i].op = NULL;
-        //}
+  }
+  for(int i=0; i < sizeOps; i++) {
+    if((ops[i].op == '*' || ops[i].op == '/') && ops[i].parenthesesDepth == parenthesesLevel) {
+      int leftNum = i;
+      int rightNum = i+1;
+      while(numbers[leftNum].realComponent == nothing && numbers[leftNum].imaginaryComponent == nothing) {
+        leftNum--;
       }
+      while(numbers[rightNum].realComponent == nothing && numbers[rightNum].imaginaryComponent == nothing) {
+        rightNum++;
+      }
+        numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
+        numbers[rightNum].realComponent = nothing;
+        ops[i].op = NULL;
     }
-    for(int i=0; i < sizeOps; i++){
-      if((ops[i].op == '+' || ops[i].op == '_')  && ops[i].parenthesesDepth == parenthesesLevel){
-        int leftNum = i;
-        int rightNum = i+1;
-        while(numbers[leftNum].realComponent == nothing) {
-          leftNum--;
-        }
-        while(numbers[rightNum].realComponent == nothing) {
-          rightNum++;
-        }
-        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
-          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
-          numbers[rightNum].realComponent = nothing;
-          ops[i].op = NULL;
-        //}
+  }
+  for(int i=0; i < sizeOps; i++){
+    if((ops[i].op == '+' || ops[i].op == '_')  && ops[i].parenthesesDepth == parenthesesLevel) {
+      int leftNum = i;
+      int rightNum = i+1;
+      while(numbers[leftNum].realComponent == nothing && numbers[leftNum].imaginaryComponent == nothing) {
+        leftNum--;
       }
-    }  
-    
-  for(int i=0; i < sizeNumbers; i++){
+      while(numbers[rightNum].realComponent == nothing && numbers[rightNum].imaginaryComponent == nothing) {
+        rightNum++;
+      }
+        numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
+        numbers[rightNum].realComponent = nothing;
+        ops[i].op = NULL;
+    }
+  }  
+ 
+  for(int i=0; i < sizeNumbers; i++) { // Decriment the parenthesesDepth of all answers
     if (numbers[i].parenthesesDepth == parenthesesLevel) {
       numbers[i].parenthesesDepth--;
     }
@@ -341,37 +331,52 @@ operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int 
   return numbers[0];
 }
 
-double calculate(double left, char op, double right)
+operand calculate(operand left, char op, operand right)
 {
-    Serial.println("Calculate has recieved the following:");
-    Serial.println(right);
-    Serial.println(op);
-    Serial.println(left);
+  if (left.realComponent == nothing){
+    left.realComponent = 0;
+  }
+  if (left.imaginaryComponent == nothing){
+    left.imaginaryComponent = 0;
+  }
+  if (right.realComponent == nothing){
+    right.realComponent = 0;
+  }    
+  if (right.imaginaryComponent == nothing){
+    right.imaginaryComponent = 0;
+  }  
     
-  double resultant = 0;
+   operand resultant;
   switch(op) {
     case '+':
-      resultant = left+right;
+      resultant.realComponent = left.realComponent+right.realComponent;
+      resultant.imaginaryComponent = left.imaginaryComponent+right.imaginaryComponent;
       break;
     case '_':
-      resultant = left-right;
+      resultant.realComponent = left.realComponent-right.realComponent;
+      resultant.imaginaryComponent = left.imaginaryComponent-right.imaginaryComponent;
       break;
     case '*':
-      resultant = left*right;
+      resultant.realComponent = left.realComponent*right.realComponent-left.imaginaryComponent*right.imaginaryComponent;
+      resultant.imaginaryComponent = left.imaginaryComponent*right.realComponent+right.imaginaryComponent*left.realComponent;
       break;
     case '/':
-      if(right != 0) {
-      resultant = left/right;
+      if(right.realComponent != 0 && right.imaginaryComponent != 0) {
+        resultant.realComponent = left.realComponent*pow(right.realComponent,-1)-left.imaginaryComponent*pow(right.imaginaryComponent,-1);
+        resultant.imaginaryComponent = left.imaginaryComponent*pow(right.realComponent,-1)+pow(right.imaginaryComponent,-1)*left.realComponent;
       } else {
         errorHandler("/ by 0 ERROR");
       }
       break;
     case '^':
-    resultant = pow(left,right);
-    if(resultant != resultant) {
-      left = -1*left;               //flips the polarity of left so the calculation can occur
-      isReal = 0;                   //The original resultant was nonreal
-      resultant = pow(left,right);
+
+      if(left.imaginaryComponent == 0 && right.imaginaryComponent){
+        resultant.realComponent = pow(left.realComponent,right.realComponent);        
+      }
+      if(resultant.realComponent != resultant.realComponent) {
+        left.realComponent = -1*left.realComponent;               //flips the polarity of left so the calculation can occur
+        resultant.realComponent = 0;
+        resultant.imaginaryComponent = pow(left.realComponent,right.realComponent); 
     }
       /*if(left < 0 && (right < 1 && right > -1)) {
         resultant = pow(left,right);

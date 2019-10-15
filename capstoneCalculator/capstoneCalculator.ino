@@ -1,3 +1,5 @@
+
+  
 //*******************************************************************
 //  Capstone Calculator
 //  By: Matthew Wagner, Noah Blain, Donovan Booker, Brandon Garner
@@ -157,15 +159,24 @@ void loop() {
         if(reset == 0) {
           lcd.clear();
           lcd.print("= ");
-          if(answer.realComponent != 0) {
-            lcd.print(answer.realComponent);
-            if(answer.imaginaryComponent != 0) {
+          if(answer.realComponent != 0 && answer.realComponent != nothing) {
+            if(answer.imaginaryComponent == 0 || answer.imaginaryComponent == nothing){
+              lcd.print(answer.realComponent,5);
+            } else {         
+               lcd.print(answer.realComponent);
+            }
+            
+            if(answer.imaginaryComponent != 0 && answer.imaginaryComponent != nothing) {
               lcd.print(" + ");
             }
           }
-          if(answer.imaginaryComponent != 0) {
+          if(answer.imaginaryComponent != 0 && answer.imaginaryComponent != nothing ) {
             lcd.print("j");
-            lcd.print(answer.imaginaryComponent);
+            if(answer.realComponent == 0 || answer.realComponent == nothing){
+              lcd.print(answer.imaginaryComponent,5);
+            } else {         
+               lcd.print(answer.imaginaryComponent);
+            }
           } else if(answer.imaginaryComponent == 0 && answer.realComponent != 0) {
             lcd.print("0");
           }
@@ -225,6 +236,7 @@ operand parseInput(char totalInput[32])
       } else {
         numbers2[l].imaginaryComponent = tempNumber;
       }
+      isReal = 1;      
       numbers2[l].parenthesesDepth = parenthesesLevel;
       for(int i=0; i<32; i++) {     // Clear numbers1
         numbers1[i] = {NULL};
@@ -288,6 +300,7 @@ operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int 
       //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
         numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
         numbers[rightNum].realComponent = nothing;
+        numbers[rightNum].imaginaryComponent = nothing;
         ops[i].op = NULL;
       //}
     }
@@ -304,6 +317,7 @@ operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int 
       }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
         numbers[rightNum].realComponent = nothing;
+        numbers[rightNum].imaginaryComponent = nothing;        
         ops[i].op = NULL;
     }
   }
@@ -319,6 +333,7 @@ operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int 
       }
         numbers[leftNum] = calculate(numbers[leftNum], ops[i].op, numbers[rightNum]);
         numbers[rightNum].realComponent = nothing;
+        numbers[rightNum].imaginaryComponent = nothing;        
         ops[i].op = NULL;
     }
   }  
@@ -361,23 +376,29 @@ operand calculate(operand left, char op, operand right)
       resultant.imaginaryComponent = left.imaginaryComponent*right.realComponent+right.imaginaryComponent*left.realComponent;
       break;
     case '/':
-      if(right.realComponent != 0 && right.imaginaryComponent != 0) {
-        resultant.realComponent = left.realComponent*pow(right.realComponent,-1)-left.imaginaryComponent*pow(right.imaginaryComponent,-1);
-        resultant.imaginaryComponent = left.imaginaryComponent*pow(right.realComponent,-1)+pow(right.imaginaryComponent,-1)*left.realComponent;
-      } else {
+        /*resultant.realComponent = left.realComponent*pow(right.realComponent,-1)-left.imaginaryComponent*pow(right.imaginaryComponent,-1);
+        resultant.imaginaryComponent = left.imaginaryComponent*pow(right.realComponent,-1)+pow(right.imaginaryComponent,-1)*left.realComponent;*/
+      double divisor = pow(right.realComponent,2)+pow(right.imaginaryComponent,2);
+      resultant.realComponent = (left.realComponent*right.realComponent+left.imaginaryComponent*right.imaginaryComponent)/divisor;
+      resultant.imaginaryComponent =(left.imaginaryComponent*right.realComponent-left.realComponent*right.imaginaryComponent)/divisor; 
+      if(resultant.realComponent != resultant.realComponent || resultant.imaginaryComponent != resultant.imaginaryComponent) {
         errorHandler("/ by 0 ERROR");
       }
       break;
     case '^':
 
-      if(left.imaginaryComponent == 0 && right.imaginaryComponent){
-        resultant.realComponent = pow(left.realComponent,right.realComponent);        
+      if(left.imaginaryComponent == 0 && right.imaginaryComponent == 0){
+        resultant.realComponent = pow(left.realComponent,right.realComponent);  
+        if(resultant.realComponent != resultant.realComponent) {
+          left.realComponent = -1*left.realComponent;               //flips the polarity of left so the calculation can occur
+          resultant.realComponent = 0;
+          resultant.imaginaryComponent = pow(left.realComponent,right.realComponent);
+          resultant.imaginaryComponent = 1/resultant.imaginaryComponent;   //I don't know why the answer is the inverse of what it should be. This flips it back.       
+        }         
+      } else {
+        errorHandler("ERROR: Complex exp ");
       }
-      if(resultant.realComponent != resultant.realComponent) {
-        left.realComponent = -1*left.realComponent;               //flips the polarity of left so the calculation can occur
-        resultant.realComponent = 0;
-        resultant.imaginaryComponent = pow(left.realComponent,right.realComponent); 
-    }
+      
       /*if(left < 0 && (right < 1 && right > -1)) {
         resultant = pow(left,right);
       } else {

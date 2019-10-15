@@ -12,11 +12,25 @@ bool isReal = 1;                                          //This flag will be be
 
 LiquidCrystal_I2C lcd(0x27,20,4);                         // Set the LCD address to 0x27 for a 16 chars and 2 line display
 
+struct operand {
+  double realComponent = nothing;
+  double imaginaryComponent = nothing;
+  int  parenthesesDepth = 0;
+
+};
+
+struct operation {
+  char op = NULL;
+  int parenthesesDepth = 0;
+};
+
 char getKey();                                                            // Returns the input from the keypad
-double parseInput(char totalInput[32]);                                   // Makes the input numbers and ops, and calls orderOfOps
-double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps);     // Calls calculate on numbers and ops in the correct order
+operand parseInput(char totalInput[32]);                                   // Makes the input numbers and ops, and calls orderOfOps
+operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int sizeOps, int parenthesesLevel);     // Calls calculate on numbers and ops in the correct order
 double calculate(double left, char op, double right);                     // Returns an answer for an operation preformed on 2 numbers
 void errorHandler(char code[]);                                           // Prints the Error code and performs a reset
+
+
 
 bool reset=1; // If true, then we must reset the calculator, clearing all values
 
@@ -142,7 +156,7 @@ void loop() {
       if(input == '=') {
         Serial.println("The totalInput array passed to parseInput is:");
         Serial.println(totalInput);
-        answer = parseInput(totalInput);
+        answer = parseInput(totalInput).realComponent;
         Serial.println('\n');
         if(reset == 0) {
           lcd.clear();
@@ -163,149 +177,177 @@ void loop() {
   }
 }
 
-double parseInput(char totalInput[32]) 
+operand parseInput(char totalInput[32]) 
 {
-  double numbers2[32] = {nothing};
+  operand numbers2[32];
   char numbers1[32] = {NULL};
-  char ops[31] = {NULL};
+  operation ops[31];
   int k=0;
   int l=0;
   int m=0;
   bool isNegative = 0;
+  bool isReal = 1;
+  double tempNumber = 0;
+  int parenthesesLevel = 0;
   for(int i=0; i<=31; i++){
     if(totalInput[i] == '-') {
       isNegative = 1;
       if(k!=0) {
         errorHandler("Syntax ERROR");
       }
-    } else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.' ) { // if it's a number or '.'
+      } else if(totalInput[i] == 'j') {
+        isReal = 0;
+        if(k!=0) {
+        errorHandler("Syntax ERROR");
+      }
+    } else if(totalInput[i] == '('){
+      parenthesesLevel++;
+    } else if(totalInput[i] == ')'){
+      parenthesesLevel--;
+      if (parenthesesLevel < 0){
+        errorHandler("Syntax ERROR");
+      }
+    }  else if((totalInput[i] >= 0x30 && totalInput[i] <= 0x39) || totalInput[i] == '.') { // if it's a number or '.'
+    
         numbers1[k] = totalInput[i];
         k++;
         Serial.println("part of a number");
     } else if(totalInput[i] == '+' ||  totalInput[i] == '_' || totalInput[i] == '*' || totalInput[i] == '/' || totalInput[i] == '^') {
-        k=0;
-        numbers2[l] = atof(numbers1);
-        if(isNegative) {
-          numbers2[l] = -1*numbers2[l];
-          isNegative = 0;
-        }
-        for(int z=0; z <32; z++) {
-          numbers1[z] = {NULL};
-        }
-        l++;
-        ops[m] = totalInput[i];
-        m++;
-        if(totalInput[i-1] == '+' ||  totalInput[i-1] == '_' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i-1] == '^'){
-          errorHandler("Syntax ERROR 1");
-        }
-        } else if(totalInput[i] == NULL) {
-          k=0;
-          Serial.println("The numbers1 array passed to charsToDouble is:");
-          Serial.println(numbers1);
-          //numbers2[l] = charsToDouble(numbers1);
-          numbers2[l] = atof(numbers1);
-          if(isNegative) {
-          numbers2[l] = -1*numbers2[l];
-          }
-          Serial.println("The numbers2 and ops arrays passed to orderOfOps is:");
-          for(int n=0; n<=l; n++) {
-            Serial.println(numbers2[n]);
-          }
-          l++; 
-          m++;
-          Serial.println(ops);
-          return orderOfOps(numbers2, ops, l, m);
-        }
+      k=0;
+      tempNumber = atof(numbers1);
+      if (isNegative){
+        tempNumber = -1*tempNumber;
       }
+      if (isReal) {
+        numbers2[l].realComponent = tempNumber;
+      } else {
+        numbers2[l].imaginaryComponent = tempNumber;
+      }
+      numbers2[l].parenthesesDepth = parenthesesLevel;
+      for(int z=0; z <32; z++) {
+        numbers1[z] = {NULL};
+      }
+      l++;
+      ops[m].op = totalInput[i];
+      ops[m].parenthesesDepth = parenthesesLevel;
+      m++;
+      if(totalInput[i-1] == '+' ||  totalInput[i-1] == '_' || totalInput[i-1] == '*' || totalInput[i-1] == '/' || totalInput[i-1] == '^'){
+        errorHandler("Syntax ERROR");
+      }
+      } else if(totalInput[i] == NULL) {
+        if (parenthesesLevel != 0){
+          errorHandler("Syntax ERROR");
+        }
+        k=0;
+        Serial.println("The numbers1 array passed to charsToDouble is:");
+        Serial.println(numbers1);
+        tempNumber = atof(numbers1);
+        if (isNegative){
+          tempNumber = -1*tempNumber;
+        }
+        if (isReal) {
+          numbers2[l].realComponent = tempNumber;
+        } else {
+          numbers2[l].imaginaryComponent = tempNumber;
+        }
+        numbers2[l].parenthesesDepth = parenthesesLevel;
+        Serial.println("The numbers2 and ops arrays passed to orderOfOps is:");
+        for(int n=0; n<=l; n++) {
+          Serial.println(numbers2[n].realComponent);
+        }
+        l++; 
+        m++;
+        //Serial.println(ops.op);
+        return orderOfOps(numbers2, ops, l, m, 0);
+      }
+    }
   }
 
-double orderOfOps(double numbers[32], char ops[31], int sizeNumbers, int sizeOps)
+operand orderOfOps(operand numbers[32], operation ops[31], int sizeNumbers, int sizeOps, int parenthesesLevel)
 {
-  //int sizeNumbers=0;
-  //int sizeOps=0;
+
   int leftNum=0;
   int rightNum=0;
-  //int numParens=0;  Parenthesis have been left out for now
-  //int leftParens=NULL;
-  //int rightParens=NULL;
-
+  operand trash;
+  Serial.println("Order of ops called with:");
+  for(int i=0; i < sizeNumbers; i++){
+    Serial.print(numbers[i].realComponent);
+    Serial.println(numbers[i].parenthesesDepth);
+  }
+  for(int i=0; i < sizeNumbers; i++){
+    if (numbers[i].parenthesesDepth > parenthesesLevel) {
+      trash = orderOfOps(numbers, ops, sizeNumbers, sizeOps, parenthesesLevel+1);
+      i=sizeNumbers;
+    }
+  }
   
-  //while(numbers[sizeNumbers] != NULL) { // This is where zero breaks because zero as a double = NULL
-  //  sizeNumbers++;
-  //}
-  //while(ops[sizeOps] != NULL) {
-  //  sizeOps++;
-  //}
-  // doesn't work with parenthesis
-  //if(sizeOps != (sizeNumbers-1)){
-  //  errorHandler("Syntax ERROR 2");
-  //} else {
-  //sort out parenthesis, call recursively
-  /*
-  for(int i=0; i <= sizeOps; i++){
-    if(ops[i] == '(') {
-      numParens++;
-      if(numParens == 1) {
-        leftParens = i;
-      }
-    } else if(ops[i] == ')') {
-      numParens--;
-    }
-    if(numParens == 0 && leftParens != NULL) {
-      
-    }
-  }*/
     for(int i=0; i < sizeOps; i++){
-      if(ops[i] == '^'){
+      if(ops[i].op == '^' && ops[i].parenthesesDepth == parenthesesLevel){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
+        while(numbers[leftNum].realComponent == nothing) {
           leftNum--;
         }
-        while(numbers[rightNum] == nothing) {
+        while(numbers[rightNum].realComponent == nothing) {
           rightNum++;
         }
-        numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = nothing;
-        ops[i] = NULL;
+        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
+          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
+          numbers[rightNum].realComponent = nothing;
+          ops[i].op = NULL;
+        //}
       }
     }
     for(int i=0; i < sizeOps; i++){
-      if(ops[i] == '*' || ops[i] == '/'){
+      if((ops[i].op == '*' || ops[i].op == '/') && ops[i].parenthesesDepth == parenthesesLevel){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == nothing) { // This is where zero breaks because zero as a double = NULL
+        while(numbers[leftNum].realComponent == nothing) { // This is where zero breaks because zero as a double = NULL
           leftNum--;
         }
-        while(numbers[rightNum] == nothing) {
+        while(numbers[rightNum].realComponent == nothing) {
           rightNum++;
         }
-        numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = nothing;
-        ops[i] = NULL;
+        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
+          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
+          numbers[rightNum].realComponent = nothing;
+          ops[i].op = NULL;
+        //}
       }
     }
     for(int i=0; i < sizeOps; i++){
-      if(ops[i] == '+' || ops[i] == '_'){
+      if((ops[i].op == '+' || ops[i].op == '_')  && ops[i].parenthesesDepth == parenthesesLevel){
         int leftNum = i;
         int rightNum = i+1;
-        while(numbers[leftNum] == NULL) {
+        while(numbers[leftNum].realComponent == nothing) {
           leftNum--;
         }
-        while(numbers[rightNum] == NULL) {
+        while(numbers[rightNum].realComponent == nothing) {
           rightNum++;
         }
-        numbers[leftNum] = calculate(numbers[leftNum], ops[i], numbers[rightNum]);
-        numbers[rightNum] = NULL;
-        ops[i] = NULL;
+        //if(numbers[leftNum].parenthesesDepth == parenthesesLevel && numbers[rightNum].parenthesesDepth == parenthesesLevel) {
+          numbers[leftNum].realComponent = calculate(numbers[leftNum].realComponent, ops[i].op, numbers[rightNum].realComponent);
+          numbers[rightNum].realComponent = nothing;
+          ops[i].op = NULL;
+        //}
       }
+    }  
+    
+  for(int i=0; i < sizeNumbers; i++){
+    if (numbers[i].parenthesesDepth == parenthesesLevel) {
+      numbers[i].parenthesesDepth--;
     }
-    return numbers[0];
-  //}
+  }
+  return numbers[0];
 }
 
 double calculate(double left, char op, double right)
 {
+    Serial.println("Calculate has recieved the following:");
+    Serial.println(right);
+    Serial.println(op);
+    Serial.println(left);
+    
   double resultant = 0;
   switch(op) {
     case '+':
@@ -325,9 +367,6 @@ double calculate(double left, char op, double right)
       }
       break;
     case '^':
-    Serial.println("Power operation has recieved the following numbers:");
-    Serial.println(right);
-    Serial.println(left);
     resultant = pow(left,right);
     if(resultant != resultant) {
       left = -1*left;               //flips the polarity of left so the calculation can occur
@@ -353,6 +392,7 @@ char getKey()
   {
     key[0]='(';
     key[1]=')';
+    key[3]='j';
     key[4]='<';
     key[5]='>';
     key[7]='-';
@@ -377,9 +417,11 @@ char getKey()
 
 void errorHandler(char errorCode[])
 {
-  lcd.clear();
-  lcd.print(errorCode);
-  reset = 1;
-  delay(200);
-  while(getKey() == NULL){}
+  if(!reset) {
+    lcd.clear();
+    lcd.print(errorCode);
+    reset = 1;
+    delay(200);
+    while(getKey() == NULL){}
+  }
 }

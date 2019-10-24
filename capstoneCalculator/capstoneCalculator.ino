@@ -57,17 +57,6 @@ void setup() {
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0,0);
-  
-  lcd.print("Downloading More"); // Just for lolz
-  lcd.setCursor(0,1);
-  lcd.print("Deditated Wam");
-  delay(500);
-  lcd.print(".");
-  delay(500);
-  lcd.print(".");
-  delay(500);
-  lcd.print(".");
-  delay(500);
   lcd.clear();
 
   byte negativeChar[] = {
